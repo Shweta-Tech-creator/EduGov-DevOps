@@ -1,0 +1,109 @@
+pipeline {
+    agent any
+
+    environment {
+        // Docker Hub settings - configure these in Jenkins Credentials
+        DOCKER_CREDS_ID   = 'docker-hub-credentials'
+        DOCKER_REGISTRY   = 'docker.io'
+        DOCKERHUB_USER    = 'shweta1616' // Your Docker Hub username
+        
+        // Image names
+        BACKEND_IMAGE     = 'edugov-backend'
+        FRONTEND_IMAGE    = 'edugov-frontend'
+        
+        // Tag is based on the build number for uniqueness
+        IMAGE_TAG         = "build-${BUILD_NUMBER}"
+        
+        // Kubernetes configuration
+        KUBECONFIG        = '/var/lib/jenkins/.kube/config'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source code from Git...'
+                checkout scm
+            }
+        }
+
+        stage('Verify Prerequisites') {
+            steps {
+                echo 'Checking that docker and kubectl are installed on the Jenkins worker...'
+                sh 'docker --version'
+                sh 'kubectl version --client'
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                echo 'Building backend Docker image...'
+                dir('backend') {
+                    sh "docker build -t ${DOCKERHUB_USER}/${BACKEND_IMAGE}:${IMAGE_TAG} -t ${DOCKERHUB_USER}/${BACKEND_IMAGE}:latest ."
+                }
+                
+                echo 'Building frontend Docker image...'
+                dir('frontend') {
+                    // Injecting backend IP into React during build if needed
+                    sh "docker build -t ${DOCKERHUB_USER}/${FRONTEND_IMAGE}:${IMAGE_TAG} -t ${DOCKERHUB_USER}/${FRONTEND_IMAGE}:latest ."
+                }
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                echo 'Logging in to Docker Hub and pushing images...'
+                withCredentials([usernamePassword(credentialsId: DOCKER_CREDS_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
+                    
+                    echo 'Pushing backend images...'
+                    sh "docker push ${DOCKER_USER}/${BACKEND_IMAGE}:${IMAGE_TAG}"
+                    sh "docker push ${DOCKER_USER}/${BACKEND_IMAGE}:latest"
+                    
+                    echo 'Pushing frontend images...'
+                    sh "docker push ${DOCKER_USER}/${FRONTEND_IMAGE}:${IMAGE_TAG}"
+                    sh "docker push ${DOCKER_USER}/${FRONTEND_IMAGE}:latest"
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                echo 'Deploying application to Kubernetes cluster...'
+                
+                // Set the correct images inside the deployment files or env vars
+                sh "sed -i 's|DOCKERHUB_USERNAME/edugov-backend:latest|${DOCKERHUB_USER}/${BACKEND_IMAGE}:${IMAGE_TAG}|g' kubernetes/backend-deployment.yaml"
+                sh "sed -i 's|DOCKERHUB_USERNAME/edugov-frontend:latest|${DOCKERHUB_USER}/${FRONTEND_IMAGE}:${IMAGE_TAG}|g' kubernetes/frontend-deployment.yaml"
+                
+                // Apply all manifests
+                sh "kubectl apply -f kubernetes/mongodb-pv.yaml"
+                sh "kubectl apply -f kubernetes/mongodb-pvc.yaml"
+                sh "kubectl apply -f kubernetes/mongodb-deployment.yaml"
+                sh "kubectl apply -f kubernetes/mongodb-service.yaml"
+                sh "kubectl apply -f kubernetes/backend-deployment.yaml"
+                sh "kubectl apply -f kubernetes/backend-service.yaml"
+                sh "kubectl apply -f kubernetes/frontend-deployment.yaml"
+                sh "kubectl apply -f kubernetes/frontend-service.yaml"
+                sh "kubectl apply -f kubernetes/hpa-backend.yaml"
+                
+                // Perform rolling update validation
+                sh "kubectl rollout status deployment/edugov-backend"
+                sh "kubectl rollout status deployment/edugov-frontend"
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Cleaning up Docker resources on Jenkins host...'
+            sh 'docker logout'
+            // Clean up untagged images to prevent disk space leaks
+            sh 'docker image prune -f'
+        }
+        success {
+            echo 'CI/CD pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed. Check build logs for troubleshooting.'
+        }
+    }
+}

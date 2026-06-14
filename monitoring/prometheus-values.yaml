@@ -1,0 +1,73 @@
+# prometheus-values.yaml - Custom values for kube-prometheus-stack Helm Chart
+# Optimized for low-cost single-node environments
+
+prometheus:
+  prometheusSpec:
+    # Reduce retention to save disk space
+    retention: 2d
+    retentionSize: "2GiB"
+    
+    # Restrict resource usage
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+        
+    # Storage settings
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: "local-path" # Default K3s storage class
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+
+# Disable Alertmanager if not needed to save memory
+alertmanager:
+  enabled: false
+
+# Grafana configuration
+grafana:
+  adminPassword: "admin" # Set default admin password
+  
+  # Resource limits for Grafana
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+      
+  # Expose Grafana on NodePort 32000 (accessible on EC2_IP:32000)
+  service:
+    type: NodePort
+    nodePort: 32000
+    port: 80
+    targetPort: 3000
+
+# Disable features we do not need to save CPU and RAM
+prometheusOperator:
+  resources:
+    requests:
+      memory: "100Mi"
+    limits:
+      memory: "150Mi"
+
+kubeStateMetrics:
+  resources:
+    requests:
+      memory: "50Mi"
+    limits:
+      memory: "100Mi"
+
+nodeExporter:
+  resources:
+    requests:
+      memory: "30Mi"
+    limits:
+      memory: "50Mi"
