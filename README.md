@@ -1,62 +1,108 @@
-# EduGov DevOps Configuration
+# 🎓 EduGov – National Digital Education Infrastructure
 
-This repository contains the deployment, automation, and monitoring configurations for the EduGov platform. The setup is designed to run on a single AWS EC2 instance running K3s.
+## Overview
+
+EduGov is a cloud-native DevOps platform designed to support digital education services including online learning, examinations, admissions, academic records, scholarships, and certification management.
+
+The project demonstrates Infrastructure as Code, CI/CD automation, Kubernetes orchestration, monitoring, logging, and secure secret management on AWS.
+
+---
+
+## Tech Stack
+
+| Category          | Technology            |
+| ----------------- | --------------------- |
+| Cloud             | AWS EC2               |
+| IaC               | Terraform             |
+| Containerization  | Docker                |
+| Orchestration     | Kubernetes (K3s)      |
+| CI/CD             | Jenkins               |
+| Secret Management | HashiCorp Vault       |
+| Monitoring        | Prometheus            |
+| Visualization     | Grafana               |
+| Logging           | Elasticsearch, Kibana |
+| Frontend          | React                 |
+| Backend           | Node.js               |
+
+---
 
 ## Repository Structure
 
-* `backend/`: Node.js API application
-* `frontend/`: React client application
-* `kubernetes/`: Deployment, service, and HPA manifests
-* `jenkins/`: Jenkinsfile for pipeline automation
-* `security/`: Vault policy and sidecar injection manifests
-* `logging/`: Elasticsearch and Kibana configurations
-* `monitoring/`: Prometheus and Grafana Helm configurations
+| Directory     | Description                       |
+| ------------- | --------------------------------- |
+| `backend/`    | Node.js Backend API               |
+| `frontend/`   | React Frontend Application        |
+| `database/`   | Database Configurations           |
+| `terraform/`  | Infrastructure Provisioning       |
+| `kubernetes/` | Deployments, Services & HPA       |
+| `jenkins/`    | CI/CD Pipeline Configuration      |
+| `security/`   | Vault Policies & Secret Injection |
+| `monitoring/` | Prometheus & Grafana Setup        |
+| `logging/`    | Elasticsearch & Kibana Setup      |
+| `docs/`       | Architecture Documentation        |
 
-## Local Ports
+---
 
-Access the deployed services on the EC2 instance using the following ports:
+## Key Features
 
-| Service | Port | Type |
-| :--- | :--- | :--- |
-| React Frontend | 3000 | NodePort / LoadBalancer |
-| Node.js Backend | 5001 | NodePort / LoadBalancer |
-| Jenkins | 8080 | Host Port |
-| HashiCorp Vault | 8200 | Host Port |
-| Kibana | 31000 | NodePort |
-| Grafana | 32000 | NodePort |
+* Infrastructure provisioning using Terraform
+* Docker containerization
+* Kubernetes deployment and orchestration
+* Jenkins CI/CD automation
+* HashiCorp Vault secret management
+* Prometheus monitoring
+* Grafana dashboards
+* ELK Stack centralized logging
+* Horizontal Pod Autoscaling (HPA)
+* Scalable and resilient architecture
+
+---
+
+## Service Endpoints
+
+| Service  | Port  |
+| -------- | ----- |
+| Frontend | 3000  |
+| Backend  | 5001  |
+| Jenkins  | 8080  |
+| Vault    | 8200  |
+| Kibana   | 31000 |
+| Grafana  | 32000 |
+
+---
 
 ## Verification
 
-### HashiCorp Vault Secret Injection
+### Vault Secret Injection
 
-Check that the backend vault pod is running with the sidecar container:
 ```bash
-sudo kubectl get pods | grep vault
+kubectl get pods | grep vault
+
+kubectl exec deployment/edugov-backend-vault \
+-c edugov-backend -- cat /vault/secrets/db-creds
 ```
 
-Inspect the injected credentials inside the container:
+### Check Application Logs
+
 ```bash
-sudo kubectl exec deployment/edugov-backend-vault -c edugov-backend -- cat /vault/secrets/db-creds
+kubectl logs deployment/edugov-backend-vault \
+-c edugov-backend --tail=15
 ```
 
-Verify the database connection in logs:
+### Verify HPA
+
 ```bash
-sudo kubectl logs deployment/edugov-backend-vault -c edugov-backend --tail=15
+kubectl get hpa -w
 ```
 
-### Autoscaling & HPA
+### Generate Load
 
-Install the load generator:
-```bash
-sudo apt-get update && sudo apt-get install -y apache2-utils
-```
-
-Run the load test:
 ```bash
 ab -n 50000 -c 80 http://localhost:5001/
 ```
 
-Monitor HPA scaling in real-time:
-```bash
-sudo kubectl get hpa -w
-```
+---
+
+## Outcome
+
+A secure, scalable, and resilient national education platform capable of handling high traffic loads through automated deployments, observability, secret management, and cloud-native DevOps practices.
